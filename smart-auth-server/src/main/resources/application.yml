@@ -1,0 +1,117 @@
+spring:
+  application:
+    name: smart-fhir-server
+
+  datasource:
+    url:                ${DB_URL:jdbc:postgresql://localhost:5432/smartfhir}
+    username:           ${DB_USER:smartfhir}   # override via env var in production
+    password:           ${DB_PASSWORD:smartfhir} # override via env var in production
+    # driver-class-name auto-detected from JDBC URL (postgresql → PostgreSQL, h2 → H2)
+
+  jpa:
+    hibernate:
+      ddl-auto: validate                   # Flyway manages schema; Hibernate only validates
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true              # safe for first run on existing DB
+
+  thymeleaf:
+    cache: false                           # set true in production
+
+server:
+  port: 9000                               # auth server on 9000; HAPI FHIR on 8080
+
+# ── SMART on FHIR server settings ─────────────────────────────────────────────
+smart:
+  server:
+    # The FHIR base URL this auth server protects.
+    # Clients use this as the ISS when launching.
+    fhir-base-url: ${FHIR_BASE_URL:http://localhost:8080/fhir}
+
+    # Issuer URL of THIS auth server — appears in id_token 'iss' claim
+    # and in /.well-known/smart-configuration
+    issuer-url: ${ISSUER_URL:http://localhost:9000}
+
+    # How long access tokens live (seconds).
+    # ── Token revocation propagation strategy ────────────────────────────────
+    # SMART access tokens are bearer tokens: once issued, they cannot be
+    # "recalled" from the FHIR server without active coordination.
+    # Two complementary mechanisms limit the blast radius of a stolen token:
+    #
+    #   1. Short TTL (production default: 300 s / 5 minutes).
+    #      A stolen token expires quickly. The app refreshes silently via the
+    #      refresh token; the clinician is not prompted again.
+    #
+    #   2. Token introspection (RFC 7662).
+    #      The FHIR server calls POST /oauth2/introspect on each request and
+    #      rejects tokens that have been revoked mid-session (e.g. clinician
+    #      logged out, app de-registered, clinician account disabled).
+    #      See deploy/README.md §"Configuring your FHIR server for introspection".
+    #
+    # Production: 300 (5 min) set in application-prod.yml.
+    # Dev:        3600 (1 hr) here — avoids constant refresh during local work.
+    # Override per-app via RegisteredApp.accessTokenTtlSeconds.
+    access-token-ttl-seconds: ${ACCESS_TOKEN_TTL:3600}
+
+    # How long refresh tokens live (seconds).
+    # Refresh tokens are rotated on every use (reuseRefreshTokens=false).
+    # A revoked refresh token cannot obtain new access tokens.
+    # Default: 24 hours — matches a typical clinical shift.
+    refresh-token-ttl-seconds: ${REFRESH_TOKEN_TTL:86400}
+
+    # Whether to always show the patient banner.
+    default-need-patient-banner: true
+
+    # URL of the SMART client's /launch endpoint.
+    # The portal redirects here after creating a launch token.
+    smart-client-launch-url: ${SMART_CLIENT_LAUNCH_URL:http://localhost:8081/launch}
+
+    # Default client_id for portal launches — must match a RegisteredApp in the DB.
+    default-client-id: ${DEFAULT_CLIENT_ID:jam-smart-client}
+
+    # ── CORS ─────────────────────────────────────────────────────────────────
+    # Space- or comma-separated list of origins allowed on the token / authorize
+    # endpoints.  Public endpoints (JWKS, .well-known) are always wildcard.
+    # Override in production to match your actual SMART app origin(s).
+    cors:
+      allowed-origins:
+        - ${CORS_ORIGIN_1:http://localhost:8081}
+        - ${CORS_ORIGIN_2:http://localhost:3000}
+
+    # ── RSA signing key ──────────────────────────────────────────────────────
+    # For production: configure a persistent PKCS12 keystore so tokens survive
+    # restarts and work across multiple instances.
+    # If keystore.path is not set, a fresh RSA-2048 key is generated at startup
+    # (all tokens are invalidated on restart — dev use only).
+    #
+    # To generate a keystore:
+    #   keytool -genkeypair -alias smart-fhir -keyalg RSA -keysize 2048 \
+    #     -sigalg SHA256withRSA -storetype PKCS12 \
+    #     -keystore smart-fhir-server.p12 \
+    #     -storepass changeit -keypass changeit \
+    #     -dname "CN=smart-fhir-server,O=AJCommons,C=US"
+    keystore:
+      path:     ${KEYSTORE_PATH:}          # empty = ephemeral key (dev only)
+      password: ${KEYSTORE_PASSWORD:}
+      alias:    ${KEYSTORE_ALIAS:smart-fhir}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    com.akhester: INFO
+    org.springframework.security: WARN
+    org.springframework.security.oauth2: WARN

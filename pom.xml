@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.ajcommons</groupId>
+    <artifactId>jam-smart-fhir</artifactId>
+    <version>0.2.3</version>
+    <packaging>pom</packaging>
+    <name>Jam SMART on FHIR Platform</name>
+    <description>SMART App Launch v2.2 Authorization Server and Client — Java 21 / Spring Boot 3.3</description>
+    <modules>
+        <module>smart-auth-server</module>
+        <module>smart-client</module>
+    </modules>
+    <properties>
+        <java.version>21</java.version>
+        <spring-boot.version>3.3.0</spring-boot.version>
+        <hapi-fhir.version>7.4.0</hapi-fhir.version>
+        <nimbus-jose.version>9.37.3</nimbus-jose.version>
+    </properties>
+</project>

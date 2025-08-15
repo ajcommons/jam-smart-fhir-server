@@ -1,0 +1,132 @@
+# ── Production profile ────────────────────────────────────────────────────────
+# Active when: SPRING_PROFILES_ACTIVE=prod   (no proxy / embedded TLS)
+#              SPRING_PROFILES_ACTIVE=prod    (behind nginx — see Option A below)
+#
+# This file covers settings that differ from application.yml in production.
+# All secrets must be supplied via environment variables — never hardcode them.
+#
+# ── TLS / HTTPS ───────────────────────────────────────────────────────────────
+#
+#   OPTION A — Behind nginx or another reverse proxy (recommended)
+#   ──────────────────────────────────────────────────────────────
+#   Keep server.ssl.enabled=false (the default).
+#   Nginx terminates TLS and forwards plain HTTP to port 9000.
+#   Spring needs to know it's behind a proxy so it generates https:// URLs
+#   for the SMART discovery document and token issuer claim.
+#
+#   Required env vars: none for TLS (nginx owns certs)
+#   See: deploy/nginx/smart-fhir.conf
+#
+#   OPTION B — Standalone with embedded TLS (no proxy)
+#   ────────────────────────────────────────────────────
+#   Set SSL_ENABLED=true and provide a PKCS12 keystore.
+#   Spring Boot / embedded Tomcat handles TLS directly on SSL_PORT (default 8443).
+#
+#   Required env vars:
+#     SSL_ENABLED=true
+#     SSL_PORT=8443                         (or 443 if running as root / with CAP_NET_BIND_SERVICE)
+#     SSL_KEYSTORE_PATH=/path/to/server.p12
+#     SSL_KEYSTORE_PASSWORD=changeit
+#     SSL_KEY_ALIAS=smart-fhir             (matches alias used when generating the keystore)
+#
+#   Generate a self-signed cert (internal / dev-prod use):
+#     keytool -genkeypair -alias smart-fhir -keyalg RSA -keysize 2048 \
+#       -sigalg SHA256withRSA -storetype PKCS12 \
+#       -keystore server.p12 -storepass changeit -keypass changeit \
+#       -validity 825 -dname "CN=auth.yourdomain.com,O=YourOrg,C=US"
+#
+#   Convert a Let's Encrypt / certbot cert to PKCS12:
+#     openssl pkcs12 -export \
+#       -in  /etc/letsencrypt/live/auth.yourdomain.com/fullchain.pem \
+#       -inkey /etc/letsencrypt/live/auth.yourdomain.com/privkey.pem \
+#       -out server.p12 -name smart-fhir -passout pass:changeit
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  datasource:
+    url:      ${DB_URL}          # required — no default in prod
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate         # Flyway owns the schema; Hibernate only validates
+    show-sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  thymeleaf:
+    cache: true                  # enable template cache in production
+
+server:
+  port: ${SERVER_PORT:9000}
+
+  # ── Embedded TLS (Option B) ────────────────────────────────────────────────
+  # All these bindings are no-ops when SSL_ENABLED is false (the default).
+  ssl:
+    enabled:            ${SSL_ENABLED:false}
+    port:               ${SSL_PORT:8443}
+    key-store:          ${SSL_KEYSTORE_PATH:}
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:}
+    key-store-type:     PKCS12
+    key-alias:          ${SSL_KEY_ALIAS:smart-fhir}
+    protocol:           TLS
+    enabled-protocols:  TLSv1.2,TLSv1.3
+    # Prefer server cipher order — prevents client downgrade attacks
+    ciphers: >
+      TLS_AES_128_GCM_SHA256,
+      TLS_AES_256_GCM_SHA384,
+      TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+      TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+      TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+      TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+
+  # ── Reverse-proxy support (Option A) ──────────────────────────────────────
+  # Trusts X-Forwarded-Proto / X-Forwarded-For headers from nginx / ALB.
+  # Spring uses these to build correct https:// URLs for SMART discovery
+  # and the 'iss' claim in tokens.
+  # Safe to leave enabled even in Option B — no proxy = no forwarded headers.
+  forward-headers-strategy: framework
+
+  # Production hardening — consistent with nginx config
+  http2:
+    enabled: true
+  compression:
+    enabled: true
+    mime-types: application/json,application/x-www-form-urlencoded,text/html
+
+# ── OAuth2 authorization table cleanup ────────────────────────────────────────
+# JdbcOAuth2AuthorizationService never deletes expired rows on its own.
+# TokenCleanupJob (maintenance package) runs on this cron to remove rows where
+# both the access token AND refresh token (if any) have expired, plus orphaned
+# consent records whose app has been deleted. Default: every 6 hours at :13.
+# Override if needed: e.g. "0 0 2 * * *" = daily at 2am.
+smart:
+  server:
+    # ── Token TTL — production values ─────────────────────────────────────────
+    # Access tokens are short-lived (5 min) to limit stolen-token exposure.
+    # FHIR servers should also call /oauth2/introspect to catch mid-session
+    # revocations (logout, de-registration, clinician account disabled).
+    # Override with ACCESS_TOKEN_TTL env var if your deployment needs longer.
+    access-token-ttl-seconds: ${ACCESS_TOKEN_TTL:300}    # 5 minutes (production)
+    refresh-token-ttl-seconds: ${REFRESH_TOKEN_TTL:86400} # 24 hours
+
+    cleanup:
+      cron: ${CLEANUP_CRON:0 13 */6 * * *}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info     # never expose env, beans, mappings in prod
+
+logging:
+  level:
+    com.akhester: INFO
+    org.springframework.security: WARN
+    org.springframework.security.oauth2: WARN

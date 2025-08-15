@@ -1,0 +1,56 @@
+# ── Dev profile ───────────────────────────────────────────────────────────────
+# Active when: $env:SPRING_PROFILES_ACTIVE="dev"; mvn spring-boot:run  (PowerShell)
+#              SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run           (bash/Linux)
+#
+# Uses H2 FILE-BASED database — survives server restarts.
+# dr.smith / dr.jones / jam-smart-client seeded on first startup only
+# (DataInitializer checks DB_IS_EMPTY before inserting).
+#
+# H2 console: http://localhost:9000/h2-console
+#   JDBC URL: jdbc:h2:file:./data/smartfhir
+#   Username: sa   Password: (leave blank)
+#
+# AUTO_SERVER=TRUE allows multiple processes to connect to the same file
+# and eliminates "Database may be already in use" file lock errors when
+# the server is restarted quickly or a second process (e.g. tests) opens it.
+
+spring:
+  datasource:
+    url:      jdbc:h2:file:./data/smartfhir;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    # driver-class-name auto-detected from jdbc:h2 URL
+
+  jpa:
+    hibernate:
+      ddl-auto: update                     # update = preserve data across restarts
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    open-in-view: false                    # suppress open-in-view warning
+
+  flyway:
+    enabled: false                         # Flyway skipped in dev — Hibernate manages DDL
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: false            # only localhost
+
+# ── TLS ───────────────────────────────────────────────────────────────────────
+# Explicitly disabled in dev — plain HTTP on port 9000.
+# Do NOT set SSL_ENABLED=true for local development.
+server:
+  ssl:
+    enabled: false
+  # No reverse proxy in dev — do not trust X-Forwarded-* headers
+  forward-headers-strategy: none
+
+logging:
+  level:
+    com.akhester: DEBUG
+    org.springframework.security: WARN
+    org.springframework.security.oauth2: WARN
+    org.flywaydb: INFO
