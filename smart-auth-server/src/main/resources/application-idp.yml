@@ -1,0 +1,55 @@
+# ── IdP Federation profile ────────────────────────────────────────────────────
+# Active when: SPRING_PROFILES_ACTIVE=prod,idp
+# Delegates clinician authentication to an upstream IdP (Okta, Azure AD, etc.)
+# DataInitializer does NOT run under this profile.
+#
+# Required env vars:
+#   IDP_CLIENT_ID         — client ID registered with your IdP
+#   IDP_CLIENT_SECRET     — client secret from your IdP
+#   IDP_WELLKNOWN_URL     — https://your-idp.example.com/.well-known/openid-configuration
+#   IDP_USER_ID_CLAIM     — claim name to match against FHIR (e.g. "email")
+#   IDP_USER_LOOKUP_QUERY — FHIR search URL template, e.g.:
+#                           http://localhost:8080/fhir/Practitioner?identifier=http://org.com/fhir/emp/{identifier}
+
+smart:
+  server:
+    idp:
+      user-id-claim:    ${IDP_USER_ID_CLAIM:email}
+      user-lookup-query: ${IDP_USER_LOOKUP_QUERY}
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          idp:
+            client-id:     ${IDP_CLIENT_ID}
+            client-secret: ${IDP_CLIENT_SECRET}
+            scope:         openid, profile, email
+            # redirect-uri defaults to {baseUrl}/login/oauth2/code/{registrationId}
+        provider:
+          idp:
+            # Set ONE of these:
+            # (a) For OIDC-compliant IdPs (Okta, Auth0, Azure AD):
+            issuer-uri: ${IDP_WELLKNOWN_URL:}
+            # (b) For manual config, set these instead of issuer-uri:
+            # authorization-uri: https://your-idp/oauth2/authorize
+            # token-uri:         https://your-idp/oauth2/token
+            # user-info-uri:     https://your-idp/userinfo
+            # jwk-set-uri:       https://your-idp/.well-known/jwks.json
+            user-name-attribute: ${IDP_USERNAME_ATTR:email}
+
+# Azure AD example — uncomment and fill in:
+# spring:
+#   security:
+#     oauth2:
+#       client:
+#         registration:
+#           idp:
+#             client-id:     ${AZURE_CLIENT_ID}
+#             client-secret: ${AZURE_CLIENT_SECRET}
+#             scope:         openid, profile, email
+#         provider:
+#           idp:
+#             issuer-uri: https://login.microsoftonline.com/${AZURE_TENANT_ID}/v2.0
+#             user-name-attribute: preferred_username
