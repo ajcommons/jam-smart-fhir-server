@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Select Patient — AJ Smart FHIR</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:            #F7F8FA;
+            --surface:       #FFFFFF;
+            --surface-alt:   #F2F5F9;
+            --border:        #DDE2EA;
+            --border-focus:  #4A7FC1;
+            --text-primary:  #1A2332;
+            --text-secondary:#3D4F65;
+            --text-muted:    #6B7A90;
+            --accent:        #2C5F9E;
+            --accent-hover:  #1E4A82;
+            --accent-light:  #EBF2FB;
+            --tag-bg:        #EEF3FA;
+            --tag-text:      #3A6090;
+            --error-bg:      #FFF3F3;
+            --error-border:  #E8BABA;
+            --error-text:    #8B2020;
+            --row-hover:     #F4F7FB;
+            --shadow-sm:     0 1px 3px rgba(0,0,0,.06), 0 1px 8px rgba(0,0,0,.04);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ── Header ─────────────────────────────────── */
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            height: 54px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            text-decoration: none;
+        }
+
+        .brand-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--accent);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 700;
+            font-size: .9rem;
+        }
+
+        .brand-name {
+            font-weight: 600;
+            font-size: .9rem;
+            color: var(--text-primary);
+        }
+
+        /* ── Main layout ─────────────────────────────── */
+        main {
+            max-width: 860px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        /* ── Context banner ──────────────────────────── */
+        .context-banner {
+            background: var(--accent-light);
+            border: 1px solid #C6D9EF;
+            border-radius: 8px;
+            padding: .75rem 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            font-size: .875rem;
+            color: var(--accent);
+        }
+
+        .context-banner svg { flex-shrink: 0; }
+
+        /* ── Page heading ────────────────────────────── */
+        .page-header {
+            margin-bottom: 1.25rem;
+        }
+
+        .page-header h1 {
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .page-header p {
+            font-size: .875rem;
+            color: var(--text-muted);
+            margin-top: .25rem;
+        }
+
+        /* ── Search form ─────────────────────────────── */
+        .search-bar {
+            display: flex;
+            gap: .5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .search-bar input {
+            flex: 1;
+            padding: .5rem .75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: .9rem;
+            color: var(--text-primary);
+            background: var(--surface);
+            transition: border-color .15s;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(74,127,193,.15);
+        }
+
+        .btn {
+            padding: .5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: .875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s, box-shadow .15s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn-primary:hover { background: var(--accent-hover); }
+
+        /* ── Patient table ───────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead th {
+            background: var(--surface-alt);
+            padding: .65rem 1rem;
+            text-align: left;
+            font-size: .78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background .1s;
+        }
+
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--row-hover); }
+
+        td {
+            padding: .75rem 1rem;
+            font-size: .875rem;
+            vertical-align: middle;
+        }
+
+        .patient-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .patient-id {
+            font-size: .78rem;
+            color: var(--text-muted);
+            margin-top: .1rem;
+        }
+
+        .gender-badge {
+            display: inline-block;
+            padding: .2rem .55rem;
+            border-radius: 4px;
+            font-size: .75rem;
+            font-weight: 500;
+            background: var(--tag-bg);
+            color: var(--tag-text);
+            text-transform: capitalize;
+        }
+
+        .select-btn {
+            padding: .4rem .85rem;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            font-size: .8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background .15s;
+        }
+
+        .select-btn:hover { background: var(--accent-hover); }
+
+        /* ── Empty state ─────────────────────────────── */
+        .empty-state {
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .empty-state p { margin-top: .5rem; font-size: .9rem; }
+
+        /* ── Error banner ────────────────────────────── */
+        .error-banner {
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            border-radius: 8px;
+            padding: .75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: .875rem;
+            color: var(--error-text);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <a class="brand" href="/portal">
+        <span class="brand-icon">AJ</span>
+        <span class="brand-name">AJ Smart FHIR</span>
+    </a>
+</header>
+
+<main>
+
+    <!-- Context banner: which app is requesting access -->
+    <div class="context-banner">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+        </svg>
+        <span>
+            The application <strong th:text="${clientId}" th:if="${clientId}">the app</strong>
+            is requesting patient access. Select a patient to grant it access.
+        </span>
+    </div>
+
+    <!-- Page heading -->
+    <div class="page-header">
+        <h1>Select a Patient</h1>
+        <p>Choose the patient this application should have access to.</p>
+    </div>
+
+    <!-- FHIR error -->
+    <div class="error-banner" th:if="${fhirError}" th:text="${fhirError}"></div>
+
+    <!-- Search -->
+    <form method="get" action="/standalone/pick-patient" class="search-bar">
+        <input type="text"
+               name="search"
+               th:value="${search}"
+               placeholder="Search by patient name…"
+               autocomplete="off"/>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    <!-- Patient table -->
+    <div class="card">
+        <table th:if="${patients != null and !#lists.isEmpty(patients)}">
+            <thead>
+                <tr>
+                    <th>Patient</th>
+                    <th>Date of Birth</th>
+                    <th>Gender</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="patient : ${patients}">
+                    <td>
+                        <div class="patient-name" th:text="${patient['name']}">Jane Doe</div>
+                        <div class="patient-id" th:text="'ID: ' + ${patient['id']}">ID: 123</div>
+                    </td>
+                    <td th:text="${patient['dob'] != '' ? patient['dob'] : '—'}">1980-01-01</td>
+                    <td>
+                        <span class="gender-badge" th:text="${patient['gender']}">unknown</span>
+                    </td>
+                    <td>
+                        <!-- Each row is its own POST form with the patient ID embedded -->
+                        <form method="post" action="/standalone/pick-patient">
+                            <input type="hidden" th:name="${_csrf.parameterName}"
+                                   th:value="${_csrf.token}"/>
+                            <input type="hidden" name="patientId"
+                                   th:value="${patient['id']}"/>
+                            <button type="submit" class="select-btn">Select</button>
+                        </form>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="empty-state"
+             th:if="${patients == null or #lists.isEmpty(patients)}">
+            <svg width="40" height="40" fill="none" stroke="#6B7A90" stroke-width="1.5"
+                 viewBox="0 0 24 24">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <p th:if="${search != null and search != ''}">
+                No patients found matching "<span th:text="${search}"></span>".
+                <a href="/standalone/pick-patient">Clear search</a>
+            </p>
+            <p th:unless="${search != null and search != ''}">
+                No patients found in the FHIR server.
+            </p>
+        </div>
+    </div>
+
+</main>
+</body>
+</html>
