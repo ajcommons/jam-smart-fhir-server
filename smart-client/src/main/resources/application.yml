@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: smart-fhir-client
+
+  thymeleaf:
+    cache: false
+
+server:
+  port: 8081
+
+# ── SMART client settings ──────────────────────────────────────────────────────
+smart:
+  client:
+    # The FHIR base URL — used as ISS for SMART discovery.
+    # The client fetches {fhir-base-url}/.well-known/smart-configuration
+    fhir-base-url: ${FHIR_BASE_URL:http://localhost:8080/fhir}
+
+    # The auth server base URL — used for token requests and discovery fallback.
+    auth-server-url: ${AUTH_SERVER_URL:http://localhost:9000}
+
+    # OAuth2 client credentials registered in the auth server's registered_apps table.
+    client-id:     ${CLIENT_ID:jam-smart-client}
+    client-secret: ${CLIENT_SECRET:}          # empty for public client (PKCE only)
+
+    # Where the auth server redirects after authorization.
+    # Must match the redirect_uri in registered_apps.
+    redirect-uri: ${REDIRECT_URI:http://localhost:8081/callback}
+
+    # Scopes to request on standalone launch.
+    # EHR launch scopes (launch, launch/patient) are added automatically.
+    default-scopes: >
+      openid fhirUser offline_access
+      patient/Patient.rs
+      patient/Condition.rs
+      patient/MedicationRequest.rs
+      patient/Observation.rs
+      patient/AllergyIntolerance.rs
+      patient/Encounter.rs
+
+    # How many seconds before token expiry to proactively refresh.
+    token-refresh-buffer-seconds: 60
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.akhester: INFO
+    org.springframework.security: WARN
