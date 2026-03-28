@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Admin — SMART Auth</title>
+    <style>
+        /* ── Design tokens (matches portal.html / consent.html) ──────────── */
+        :root {
+            --bg:             #F7F8FA;
+            --surface:        #FFFFFF;
+            --surface-alt:    #F2F5F9;
+            --border:         #DDE2EA;
+            --border-focus:   #4A7FC1;
+            --text-primary:   #1A2332;
+            --text-secondary: #3D4F65;
+            --text-muted:     #6B7A90;
+            --accent:         #2C5F9E;
+            --accent-hover:   #1E4A82;
+            --accent-light:   #EBF2FB;
+            --tag-bg:         #EEF3FA;
+            --tag-text:       #3A6090;
+            --error-bg:       #FFF3F3;
+            --error-border:   #E8BABA;
+            --error-text:     #8B2020;
+            --success-bg:     #F0FBF4;
+            --success-border: #A8D9B8;
+            --success-text:   #1A6B38;
+            --danger:         #C0392B;
+            --danger-hover:   #992D22;
+            --shadow-sm:      0 1px 3px rgba(0,0,0,.06), 0 1px 8px rgba(0,0,0,.04);
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            background: var(--bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ── Header ─────────────────────────────────────────────────────── */
+        header {
+            position: sticky; top: 0; z-index: 100;
+            height: 54px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center;
+            padding: 0 20px; gap: 10px;
+            box-shadow: var(--shadow-sm);
+        }
+        .brand-icon {
+            width: 30px; height: 30px;
+            background: var(--accent); border-radius: 7px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .brand-icon svg { width: 16px; height: 16px; fill: #fff; }
+        header h1 { font-size: 15px; font-weight: 600; flex: 1; }
+        .header-badge {
+            font-size: 11px; font-weight: 600;
+            background: var(--accent); color: #fff;
+            padding: 2px 8px; border-radius: 10px;
+        }
+        .logout-link {
+            font-size: 13px; color: var(--text-muted);
+            text-decoration: none;
+        }
+        .logout-link:hover { color: var(--danger); }
+
+        /* ── Main layout ────────────────────────────────────────────────── */
+        main { max-width: 960px; margin: 0 auto; padding: 28px 16px 60px; }
+
+        /* ── Flash messages ─────────────────────────────────────────────── */
+        .flash {
+            padding: 10px 14px; border-radius: 8px;
+            margin-bottom: 18px; font-size: 13px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .flash-success {
+            background: var(--success-bg); border: 1px solid var(--success-border);
+            color: var(--success-text);
+        }
+        .flash-error {
+            background: var(--error-bg); border: 1px solid var(--error-border);
+            color: var(--error-text);
+        }
+        .flash svg { width: 14px; height: 14px; fill: currentColor; flex-shrink: 0; }
+
+        /* ── Tabs ───────────────────────────────────────────────────────── */
+        .tabs {
+            display: flex; gap: 0;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 24px;
+        }
+        .tab-link {
+            padding: 10px 20px;
+            font-size: 14px; font-weight: 500;
+            color: var(--text-muted);
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: color .15s, border-color .15s;
+        }
+        .tab-link:hover { color: var(--accent); }
+        .tab-link.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        /* ── Section card ───────────────────────────────────────────────── */
+        .section-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            margin-bottom: 28px;
+        }
+        .section-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .section-header h2 {
+            font-size: 14px; font-weight: 600;
+            color: var(--text-primary);
+        }
+        .count-badge {
+            font-size: 11px; font-weight: 600;
+            background: var(--tag-bg); color: var(--tag-text);
+            padding: 2px 8px; border-radius: 10px;
+        }
+
+        /* ── Table ──────────────────────────────────────────────────────── */
+        table {
+            width: 100%; border-collapse: collapse;
+        }
+        th {
+            text-align: left;
+            font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: .05em;
+            color: var(--text-muted);
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface-alt);
+        }
+        td {
+            padding: 11px 16px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: top;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #F8FAFB; }
+
+        .mono { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 12px; }
+
+        .pill {
+            display: inline-block;
+            font-size: 11px; font-weight: 500;
+            padding: 2px 8px; border-radius: 10px;
+        }
+        .pill-active   { background: #E6F4EC; color: #1A6B38; }
+        .pill-inactive { background: #F5E9E9; color: #8B2020; }
+        .pill-admin    { background: var(--accent-light); color: var(--accent); }
+        .pill-user     { background: var(--tag-bg); color: var(--tag-text); }
+
+        .scope-list {
+            font-size: 11px; color: var(--text-muted);
+            font-family: 'SFMono-Regular', Consolas, monospace;
+        }
+
+        /* ── Action buttons in table ─────────────────────────────────────── */
+        .actions-cell { white-space: nowrap; }
+        .btn-sm {
+            display: inline-block;
+            padding: 4px 10px; border-radius: 5px;
+            font-size: 12px; font-weight: 500;
+            cursor: pointer; border: 1px solid var(--border);
+            background: var(--surface); color: var(--text-secondary);
+            text-decoration: none;
+            transition: background .12s, color .12s;
+        }
+        .btn-sm:hover { background: var(--surface-alt); color: var(--text-primary); }
+        .btn-sm-danger {
+            border-color: var(--error-border);
+            color: var(--error-text);
+            background: var(--surface);
+        }
+        .btn-sm-danger:hover { background: var(--error-bg); }
+
+        /* ── Empty state ─────────────────────────────────────────────────── */
+        .empty-row td {
+            padding: 28px 16px; text-align: center;
+            color: var(--text-muted); font-style: italic;
+        }
+
+        /* ── Create / Edit forms ─────────────────────────────────────────── */
+        .form-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: var(--shadow-sm);
+            padding: 20px 24px;
+            margin-bottom: 28px;
+        }
+        .form-card h3 {
+            font-size: 14px; font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 16px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group.full { grid-column: 1 / -1; }
+        label {
+            font-size: 12px; font-weight: 600;
+            color: var(--text-secondary);
+        }
+        label .optional {
+            font-weight: 400; color: var(--text-muted);
+        }
+        input[type="text"],
+        input[type="password"],
+        input[type="number"],
+        select,
+        textarea {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-primary);
+            background: var(--surface);
+            outline: none;
+            transition: border-color .15s;
+            width: 100%;
+            font-family: inherit;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(74,127,193,.12);
+        }
+        textarea { resize: vertical; min-height: 70px; }
+        .hint { font-size: 11px; color: var(--text-muted); }
+
+        .checkbox-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 4px 0;
+        }
+        input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
+
+        .form-actions {
+            display: flex; gap: 10px; margin-top: 16px;
+            padding-top: 14px; border-top: 1px solid var(--border);
+        }
+        .btn-primary {
+            padding: 8px 18px;
+            background: var(--accent); color: #fff;
+            border: none; border-radius: 6px;
+            font-size: 13px; font-weight: 500;
+            cursor: pointer;
+        }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-cancel {
+            padding: 8px 18px;
+            background: var(--surface); color: var(--text-secondary);
+            border: 1px solid var(--border); border-radius: 6px;
+            font-size: 13px; font-weight: 500;
+            text-decoration: none; display: inline-block;
+        }
+        .btn-cancel:hover { background: var(--surface-alt); }
+
+        @media (max-width: 600px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group.full { grid-column: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header>
+    <div class="brand-icon">
+        <svg viewBox="0 0 20 20"><path d="M10 1L3 4.5v5.25C3 13.7 6.1 17.5 10 19c3.9-1.5 7-5.3 7-9.25V4.5L10 1z"/></svg>
+    </div>
+    <h1>SMART Auth Server</h1>
+    <span class="header-badge">Admin</span>
+    <a href="/logout" class="logout-link">Sign out</a>
+</header>
+
+<!-- ── Main ────────────────────────────────────────────────────────────── -->
+<main>
+
+    <!-- Flash messages -->
+    <div th:if="${successMessage}" class="flash flash-success">
+        <svg viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm3.7 6.3l-4 4a1 1 0 01-1.4 0l-2-2a1 1 0 011.4-1.4L9 10.6l3.3-3.3a1 1 0 011.4 1.4z"/></svg>
+        <span th:text="${successMessage}">Success</span>
+    </div>
+    <div th:if="${errorMessage}" class="flash flash-error">
+        <svg viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16A8 8 0 0010 2zm1 11H9v-2h2v2zm0-4H9V6h2v3z"/></svg>
+        <span th:text="${errorMessage}">Error</span>
+    </div>
+
+    <!-- Tabs -->
+    <nav class="tabs">
+        <a th:href="@{/admin}"
+           th:classappend="${activeTab == 'apps'} ? 'active' : ''"
+           class="tab-link">SMART Apps</a>
+        <a th:href="@{/admin/clinicians}"
+           th:classappend="${activeTab == 'clinicians'} ? 'active' : ''"
+           class="tab-link">Clinicians</a>
+    </nav>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         APPS TAB
+         ══════════════════════════════════════════════════════════ -->
+    <th:block th:if="${activeTab == 'apps'}">
+
+        <!-- Edit app form (shown when editApp is set) -->
+        <div class="form-card" th:if="${editApp != null}">
+            <h3>Edit App — <span th:text="${editApp.clientId}" class="mono">client</span></h3>
+            <form th:action="@{/admin/apps/{id}/update(id=${editApp.id})}" method="POST">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>App Name</label>
+                        <input type="text" name="appName" th:value="${editApp.appName}" required/>
+                    </div>
+                    <div class="form-group">
+                        <label>Redirect URI</label>
+                        <input type="text" name="redirectUri" th:value="${editApp.redirectUri}" required/>
+                    </div>
+                    <div class="form-group full">
+                        <label>Allowed Scopes <span class="optional">(comma-separated)</span></label>
+                        <textarea name="allowedScopes" th:text="${editApp.allowedScopes}"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Access Token TTL <span class="optional">(seconds, blank = server default)</span></label>
+                        <input type="number" name="accessTokenTtlSeconds" min="30"
+                               th:value="${editApp.accessTokenTtlSeconds}"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="appActive" name="active" value="true"
+                                   th:checked="${editApp.active}"/>
+                            <label for="appActive" style="font-weight:400;">Active</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <a th:href="@{/admin}" class="btn-cancel">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Create app form -->
+        <div class="form-card" th:if="${editApp == null}">
+            <h3>Register New SMART App</h3>
+            <form th:action="@{/admin/apps/create}" method="POST">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Client ID</label>
+                        <input type="text" name="clientId" placeholder="my-smart-app" required/>
+                        <span class="hint">Unique OAuth2 identifier — cannot be changed after creation</span>
+                    </div>
+                    <div class="form-group">
+                        <label>App Name</label>
+                        <input type="text" name="appName" placeholder="My SMART App" required/>
+                    </div>
+                    <div class="form-group full">
+                        <label>Redirect URI</label>
+                        <input type="text" name="redirectUri"
+                               placeholder="https://app.example.com/callback" required/>
+                    </div>
+                    <div class="form-group full">
+                        <label>Allowed Scopes <span class="optional">(comma-separated)</span></label>
+                        <textarea name="allowedScopes"
+                                  placeholder="launch, launch/patient, openid, fhirUser, patient/Patient.rs, offline_access"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Access Token TTL <span class="optional">(seconds, blank = server default)</span></label>
+                        <input type="number" name="accessTokenTtlSeconds" min="30" placeholder="300"/>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Register App</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- App list -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2>Registered Apps</h2>
+                <span class="count-badge" th:text="${apps.size() + ' apps'}">0 apps</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Client ID</th>
+                        <th>App Name</th>
+                        <th>Redirect URI</th>
+                        <th>Scopes</th>
+                        <th>TTL (s)</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${apps.empty}" class="empty-row">
+                        <td colspan="7">No apps registered yet. Use the form above to add one.</td>
+                    </tr>
+                    <tr th:each="app : ${apps}">
+                        <td class="mono" th:text="${app.clientId}">client-id</td>
+                        <td th:text="${app.appName}">App Name</td>
+                        <td class="mono" style="font-size:11px;"
+                            th:text="${app.redirectUri}">https://...</td>
+                        <td class="scope-list"
+                            th:text="${app.allowedScopes}">scopes</td>
+                        <td th:text="${app.accessTokenTtlSeconds != null ? app.accessTokenTtlSeconds : '—'}">—</td>
+                        <td>
+                            <span class="pill"
+                                  th:classappend="${app.active} ? 'pill-active' : 'pill-inactive'"
+                                  th:text="${app.active} ? 'Active' : 'Inactive'">Active</span>
+                        </td>
+                        <td class="actions-cell">
+                            <a th:href="@{/admin/apps/{id}/edit(id=${app.id})}"
+                               class="btn-sm">Edit</a>
+                            <form th:action="@{/admin/apps/{id}/delete(id=${app.id})}"
+                                  method="POST" style="display:inline;"
+                                  onsubmit="return confirm('Delete this app? This cannot be undone.');">
+                                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                                <button type="submit" class="btn-sm btn-sm-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </th:block>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         CLINICIANS TAB
+         ══════════════════════════════════════════════════════════ -->
+    <th:block th:if="${activeTab == 'clinicians'}">
+
+        <!-- Edit clinician form -->
+        <div class="form-card" th:if="${editClinician != null}">
+            <h3>Edit Clinician — <span th:text="${editClinician.username}" class="mono">username</span></h3>
+            <form th:action="@{/admin/clinicians/{id}/update(id=${editClinician.id})}" method="POST">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>New Password <span class="optional">(leave blank to keep current)</span></label>
+                        <input type="password" name="password" autocomplete="new-password"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Display Name</label>
+                        <input type="text" name="displayName" th:value="${editClinician.displayName}"/>
+                    </div>
+                    <div class="form-group">
+                        <label>FHIR User ID <span class="optional">(Practitioner resource ID)</span></label>
+                        <input type="text" name="fhirUserId" th:value="${editClinician.fhirUserId}"
+                               placeholder="Practitioner-001"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select name="role">
+                            <option value="CLINICIAN"
+                                    th:selected="${editClinician.role == 'CLINICIAN'}">Clinician</option>
+                            <option value="ADMIN"
+                                    th:selected="${editClinician.role == 'ADMIN'}">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="cEnabled" name="enabled" value="true"
+                                   th:checked="${editClinician.enabled}"/>
+                            <label for="cEnabled" style="font-weight:400;">Account enabled</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <a th:href="@{/admin/clinicians}" class="btn-cancel">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Create clinician form -->
+        <div class="form-card" th:if="${editClinician == null}">
+            <h3>Create Clinician Account</h3>
+            <form th:action="@{/admin/clinicians/create}" method="POST">
+                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" name="username" placeholder="dr.smith" required autocomplete="off"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" required autocomplete="new-password"/>
+                    </div>
+                    <div class="form-group">
+                        <label>Display Name <span class="optional">(optional)</span></label>
+                        <input type="text" name="displayName" placeholder="Dr. Jane Smith"/>
+                    </div>
+                    <div class="form-group">
+                        <label>FHIR User ID <span class="optional">(optional)</span></label>
+                        <input type="text" name="fhirUserId" placeholder="Practitioner-001"/>
+                        <span class="hint">FHIR Practitioner resource ID — included in id_token</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <select name="role">
+                            <option value="CLINICIAN" selected>Clinician</option>
+                            <option value="ADMIN">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Create Account</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Clinician list -->
+        <div class="section-card">
+            <div class="section-header">
+                <h2>Clinician Accounts</h2>
+                <span class="count-badge" th:text="${clinicians.size() + ' accounts'}">0 accounts</span>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Display Name</th>
+                        <th>FHIR User ID</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:if="${clinicians.empty}" class="empty-row">
+                        <td colspan="6">No clinician accounts yet.</td>
+                    </tr>
+                    <tr th:each="c : ${clinicians}">
+                        <td class="mono" th:text="${c.username}">username</td>
+                        <td th:text="${c.displayName ?: '—'}">Name</td>
+                        <td class="mono" style="font-size:12px;"
+                            th:text="${c.fhirUserId ?: '—'}">Practitioner-001</td>
+                        <td>
+                            <span class="pill"
+                                  th:classappend="${c.role == 'ADMIN'} ? 'pill-admin' : 'pill-user'"
+                                  th:text="${c.role ?: 'CLINICIAN'}">CLINICIAN</span>
+                        </td>
+                        <td>
+                            <span class="pill"
+                                  th:classappend="${c.enabled} ? 'pill-active' : 'pill-inactive'"
+                                  th:text="${c.enabled} ? 'Active' : 'Disabled'">Active</span>
+                        </td>
+                        <td class="actions-cell">
+                            <a th:href="@{/admin/clinicians/{id}/edit(id=${c.id})}"
+                               class="btn-sm">Edit</a>
+                            <form th:action="@{/admin/clinicians/{id}/delete(id=${c.id})}"
+                                  method="POST" style="display:inline;"
+                                  onsubmit="return confirm('Delete this clinician? This cannot be undone.');">
+                                <input type="hidden" name="_csrf" th:value="${_csrf.token}"/>
+                                <button type="submit" class="btn-sm btn-sm-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </th:block>
+
+</main>
+</body>
+</html>
