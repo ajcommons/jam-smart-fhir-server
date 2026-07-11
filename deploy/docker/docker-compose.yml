@@ -1,0 +1,124 @@
+# ── AJ Smart FHIR — Docker Compose ───────────────────────────────────────────
+#
+# Wires together: Spring auth server + PostgreSQL.
+# nginx is intentionally NOT included here — run it on the host with the
+# provided smart-fhir.conf, or use a cloud load balancer / ingress controller.
+#
+# Usage
+# ─────
+#   cp .env.example .env          # fill in secrets
+#   docker compose up -d
+#   docker compose logs -f smart-fhir-server
+#
+# For embedded TLS (Option B — no nginx):
+#   Set SSL_ENABLED=true and SSL_KEYSTORE_PATH in .env.
+#   Map port 8443 instead of 9000 in the ports section below,
+#   and adjust SSL_PORT accordingly.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: smart-fhir-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${DB_NAME:-smartfhir}
+      POSTGRES_USER:     ${DB_USER:-smartfhir}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartfhir}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Not exposed to host by default — only the app container connects to it
+    # Uncomment the next two lines if you need direct DB access (dev only):
+    # ports:
+    #   - "5432:5432"
+
+  # ── Smart FHIR Authorization Server ────────────────────────────────────────
+  smart-fhir-server:
+    image: ghcr.io/ajcommons/jam-smart-fhir-server:latest
+    # Or build locally:
+    # build:
+    #   context: ../../smart-auth-server
+    #   dockerfile: Dockerfile
+    container_name: smart-fhir-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      # Option A (nginx in front): only expose on localhost, nginx proxies to it
+      - "127.0.0.1:9000:9000"
+      # Option B (embedded TLS): uncomment and set SSL_ENABLED=true in .env
+      # - "0.0.0.0:8443:8443"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      # ── Database ──────────────────────────────────────────────────────────
+      DB_URL:      jdbc:postgresql://postgres:5432/${DB_NAME:-smartfhir}
+      DB_USER:     ${DB_USER:-smartfhir}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # ── Server identity ───────────────────────────────────────────────────
+      # IMPORTANT: must be the public HTTPS URL clients use to reach this server
+      ISSUER_URL:      ${ISSUER_URL}       # e.g. https://auth.yourdomain.com
+      FHIR_BASE_URL:   ${FHIR_BASE_URL}   # e.g. https://fhir.yourdomain.com/fhir
+
+      # ── RSA signing key ───────────────────────────────────────────────────
+      KEYSTORE_PATH:     /run/secrets/signing.p12
+      KEYSTORE_PASSWORD: ${KEYSTORE_PASSWORD}
+      KEYSTORE_ALIAS:    ${KEYSTORE_ALIAS:-smart-fhir}
+
+      # ── CORS ──────────────────────────────────────────────────────────────
+      CORS_ORIGIN_1: ${CORS_ORIGIN_1}     # e.g. https://smart-app.yourdomain.com
+      CORS_ORIGIN_2: ${CORS_ORIGIN_2:-}   # second origin if needed
+
+      # ── SMART client ──────────────────────────────────────────────────────
+      SMART_CLIENT_LAUNCH_URL: ${SMART_CLIENT_LAUNCH_URL}
+      DEFAULT_CLIENT_ID:       ${DEFAULT_CLIENT_ID:-jam-smart-client}
+
+      # ── Embedded TLS (Option B — no nginx) ────────────────────────────────
+      # Leave SSL_ENABLED=false when using nginx (Option A).
+      SSL_ENABLED:           ${SSL_ENABLED:-false}
+      SSL_PORT:              ${SSL_PORT:-8443}
+      SSL_KEYSTORE_PATH:     /run/secrets/server-tls.p12
+      SSL_KEYSTORE_PASSWORD: ${SSL_KEYSTORE_PASSWORD:-}
+      SSL_KEY_ALIAS:         ${SSL_KEY_ALIAS:-smart-fhir}
+
+    secrets:
+      - signing.p12
+      - server-tls.p12
+    volumes:
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/actuator/health | grep UP || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+# ── Secrets (PKCS12 keystores) ─────────────────────────────────────────────
+# Mount the keystore files as Docker secrets — they never appear in env vars
+# or docker inspect output.
+#
+# Create the secret files before running docker compose:
+#   docker secret create signing.p12 /path/to/signing.p12        # Docker Swarm
+#
+# For plain docker compose (not Swarm), use file-based secrets:
+secrets:
+  signing.p12:
+    file: ${SIGNING_KEYSTORE_FILE:-./secrets/signing.p12}
+  server-tls.p12:
+    file: ${TLS_KEYSTORE_FILE:-./secrets/server-tls.p12}
+
+# ── Volumes ────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  app_logs:
+    driver: local

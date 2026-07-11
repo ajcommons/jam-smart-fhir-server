@@ -1,0 +1,53 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: smartfhir
+      POSTGRES_USER: smartfhir
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U smartfhir"]
+      interval: 5s
+      retries: 5
+
+  hapi-fhir:
+    image: hapiproject/hapi:v7.4.0
+    environment:
+      hapi.fhir.fhir_version: R4
+      spring.datasource.url: jdbc:postgresql://postgres:5432/smartfhir
+      spring.datasource.username: smartfhir
+      spring.datasource.password: ${DB_PASSWORD:-changeme}
+      hapi.fhir.subscription.resthook_enabled: "true"
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  smart-auth-server:
+    build: ./smart-auth-server
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/smartfhir
+      DB_USER: smartfhir
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      FHIR_BASE_URL: http://hapi-fhir:8080/fhir
+      ISSUER_URL: ${ISSUER_URL:-http://localhost:9000}
+      SMART_CLIENT_LAUNCH_URL: ${SMART_CLIENT_LAUNCH_URL:-http://localhost:8080/launch}
+    ports: ["9000:9000"]
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  smart-client:
+    build: ./smart-client
+    environment:
+      FHIR_BASE_URL: http://hapi-fhir:8080/fhir
+      AUTH_SERVER_URL: http://smart-auth-server:9000
+      CLIENT_ID: ${CLIENT_ID:-smart-client}
+      CLIENT_SECRET: ${CLIENT_SECRET:-changeme}
+      REDIRECT_URI: ${REDIRECT_URI:-http://localhost:8081/callback}
+    ports: ["8081:8081"]
+    depends_on: [smart-auth-server]
+
+volumes:
+  pgdata:
