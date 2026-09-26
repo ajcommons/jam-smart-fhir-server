@@ -130,7 +130,7 @@ public class AdminController {
         try {
             String deletedName = adminService.deleteApp(id);
             ra.addFlashAttribute("successMessage",
-                    "App “" + deletedName + "” deleted.");
+                    "App "" + deletedName + "" deleted.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
@@ -240,7 +240,7 @@ public class AdminController {
         try {
             String deletedUsername = adminService.deleteClinician(id);
             ra.addFlashAttribute("successMessage",
-                    "Clinician “" + deletedUsername + "” deleted.");
+                    "Clinician "" + deletedUsername + "" deleted.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
