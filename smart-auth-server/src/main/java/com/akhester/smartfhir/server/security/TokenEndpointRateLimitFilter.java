@@ -2,7 +2,6 @@ package com.akhester.smartfhir.server.security;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -76,12 +75,15 @@ public class TokenEndpointRateLimitFilter extends OncePerRequestFilter {
     /**
      * Creates a new token bucket for an IP address.
      * Capacity: 20 tokens. Refill: 10 tokens/minute (greedy = spread evenly).
+     *
+     * Uses Bucket4j 8.x API: Bandwidth.builder() replaces the removed
+     * Bandwidth.classic(capacity, Refill) method from Bucket4j &lt; 8.0.
      */
     private Bucket newBucket(String ip) {
-        Bandwidth limit = Bandwidth.classic(
-            20,                                      // capacity: 20 bursts
-            Refill.greedy(10, Duration.ofMinutes(1)) // refill: 10/min
-        );
+        Bandwidth limit = Bandwidth.builder()
+            .capacity(20)                                   // burst: 20 tokens
+            .refillGreedy(10, Duration.ofMinutes(1))        // refill: 10/min
+            .build();
         return Bucket.builder().addLimit(limit).build();
     }
 

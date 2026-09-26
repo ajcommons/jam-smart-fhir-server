@@ -3,6 +3,7 @@ package com.akhester.smartfhir.server.auth;
 import ca.uhn.fhir.interceptor.api.Hook;
 import ca.uhn.fhir.interceptor.api.Interceptor;
 import ca.uhn.fhir.interceptor.api.Pointcut;
+import ca.uhn.fhir.rest.api.RestOperationTypeEnum;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.AuthenticationException;
 import ca.uhn.fhir.rest.server.exceptions.ForbiddenOperationException;
@@ -73,17 +74,19 @@ public class SmartScopeAuthorizationInterceptor {
         List<String> grantedScopes = Arrays.asList(scope.split("\\s+"));
 
         String resourceType = requestDetails.getResourceName();
-        String requestType  = requestDetails.getRequestType().name(); // GET, POST, PUT, DELETE
+        // Use RestOperationTypeEnum to distinguish read (GET /Patient/123) from
+        // search (GET /Patient?name=foo) — both are HTTP GET but need different scopes.
+        RestOperationTypeEnum opType = requestDetails.getRestOperationType();
 
-        if (resourceType != null && !isAllowed(resourceType, requestType, grantedScopes)) {
+        if (resourceType != null && !isAllowed(resourceType, opType, grantedScopes)) {
             log.warn("Scope denied — resource={}, operation={}, scopes={}",
-                    resourceType, requestType, scope);
+                    resourceType, opType, scope);
             throw new ForbiddenOperationException(
-                    "Insufficient scope for " + requestType + " on " + resourceType
-                    + ". Required: patient/" + resourceType + ".r or patient/*.rs");
+                    "Insufficient scope for " + opType + " on " + resourceType
+                    + ". Required: patient/" + resourceType + ".rs or patient/*.rs");
         }
 
-        log.debug("Scope check passed — resource={}, operation={}", resourceType, requestType);
+        log.debug("Scope check passed — resource={}, operation={}", resourceType, opType);
     }
 
     // ── private helpers ───────────────────────────────────────────────────────
@@ -106,15 +109,18 @@ public class SmartScopeAuthorizationInterceptor {
      *
      * Operation letters: r=read, s=search, c=create, u=update, d=delete
      */
-    private boolean isAllowed(String resourceType, String requestType,
+    private boolean isAllowed(String resourceType, RestOperationTypeEnum opType,
                               List<String> grantedScopes) {
-        // Derive the required operation letter from the HTTP method
-        String requiredOp = switch (requestType) {
-            case "GET"    -> "r";  // read or search
-            case "POST"   -> "c";  // create
-            case "PUT"    -> "u";  // update
-            case "DELETE" -> "d";  // delete
-            default       -> "r";
+        // Map HAPI operation type to SMART scope letter.
+        // Search (GET /Patient?...) needs "s"; read (GET /Patient/123) needs "r".
+        // Both are HTTP GET, so we must use RestOperationTypeEnum, not the HTTP method string.
+        String requiredOp = switch (opType) {
+            case SEARCH_TYPE, SEARCH_SYSTEM, SEARCH_SYSTEM_TYPE -> "s";
+            case READ, VREAD                                     -> "r";
+            case CREATE                                          -> "c";
+            case UPDATE, PATCH                                   -> "u";
+            case DELETE                                          -> "d";
+            default                                              -> "r";
         };
 
         for (String scope : grantedScopes) {
@@ -149,8 +155,9 @@ public class SmartScopeAuthorizationInterceptor {
                 || scopeResource.equalsIgnoreCase(resourceType);
         if (!resourceMatches) return false;
 
-        // Operation must be in the scope's ops string
-        return scopeOps.contains(requiredOp)
-                || scopeOps.equals("cruds"); // full access
+        // Operation must be in the scope's ops string.
+        // Note: scopeOps.equals("cruds") is redundant — if scopeOps is "cruds" then
+        // contains(requiredOp) is already true for any single-char op in {c,r,u,d,s}.
+        return scopeOps.contains(requiredOp);
     }
 }

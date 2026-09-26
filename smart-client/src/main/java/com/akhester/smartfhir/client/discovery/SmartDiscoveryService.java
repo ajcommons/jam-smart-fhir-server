@@ -90,14 +90,21 @@ public class SmartDiscoveryService {
             return cached.config();
         }
 
-        // Cache miss or stale — fetch. computeIfAbsent on ConcurrentHashMap is atomic
-        // per key, preventing the thundering-herd double-fetch under burst load.
-        // We evict stale entries first so computeIfAbsent always runs for expired keys.
-        if (cached != null && isExpired(cached)) {
-            cache.remove(normalizedIss, cached); // only remove if still the same entry
-        }
-
-        CacheEntry fresh = cache.computeIfAbsent(normalizedIss, key -> {
+        // Cache miss or stale — fetch.
+        // Using compute() (atomic) instead of remove() + computeIfAbsent() to avoid
+        // a race window where two threads both see an expired entry, both remove it,
+        // and both enter computeIfAbsent, triggering two concurrent network fetches
+        // for the same ISS.
+        //
+        // compute() holds the key-level lock for the full check-and-replace, so at
+        // most one thread fetches. Other threads calling compute() concurrently on
+        // the same key are serialised behind it and get the already-fresh entry.
+        CacheEntry fresh = cache.compute(normalizedIss, (key, existing) -> {
+            // Inside the lock: re-check freshness to handle the case where another
+            // thread already refreshed while we were waiting.
+            if (existing != null && !isExpired(existing)) {
+                return existing; // still fresh — return without fetching
+            }
             log.info("Fetching SMART configuration from ISS: {}", key);
             SmartConfiguration config = fetchAndParse(key);
             config.validate(key);

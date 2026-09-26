@@ -35,6 +35,14 @@ public record SmartConfiguration(
         @JsonProperty("token_endpoint")
         String tokenEndpoint,
 
+        /**
+         * JWKS endpoint URL for signature verification.
+         * Present in Epic and SMART-conformant IdPs; used by IdTokenValidator
+         * to obtain the public keys for RS256 verification.
+         */
+        @JsonProperty("jwks_uri")
+        String jwksUri,
+
         @JsonProperty("token_endpoint_auth_methods_supported")
         List<String> tokenEndpointAuthMethods,
 

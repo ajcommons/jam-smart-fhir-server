@@ -449,16 +449,6 @@ class OAuth2FlowIntegrationTest extends SmartIntegrationTestBase {
     private String obtainAuthorizationCode() throws Exception {
         MockHttpSession session = new MockHttpSession();
 
-        mockMvc.perform(get("/oauth2/authorize")
-                .session(session)
-                .param("response_type",         "code")
-                .param("client_id",             TEST_CLIENT_ID)
-                .param("redirect_uri",          TEST_REDIRECT_URI)
-                .param("scope",                 "openid launch/patient patient/Patient.rs")
-                .param("state",                 "s1")
-                .param("code_challenge",        testCodeChallenge())
-                .param("code_challenge_method", "S256"));
-
         mockMvc.perform(post("/login")
                 .session(session)
                 .with(csrf())

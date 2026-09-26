@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 
 /**
@@ -69,7 +70,10 @@ public class TokenCleanupJob {
     public void purgeExpiredTokens() {
         log.info("TokenCleanupJob: starting expired-token purge");
 
-        Instant now = Instant.now();
+        // Convert to java.sql.Timestamp: JDBC spec has no defined mapping for
+        // java.time.Instant directly — Timestamp.from() is universally safe across
+        // all JDBC drivers and PostgreSQL versions.
+        Timestamp now = Timestamp.from(Instant.now());
 
         try {
             int authDeleted = jdbcTemplate.update(

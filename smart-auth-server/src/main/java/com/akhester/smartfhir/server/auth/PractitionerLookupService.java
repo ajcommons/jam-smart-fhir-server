@@ -2,7 +2,6 @@ package com.akhester.smartfhir.server.auth;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
-import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Practitioner;
 import org.slf4j.Logger;
@@ -29,15 +28,16 @@ public class PractitionerLookupService {
     private final SmartIdpProperties idpProperties;
     private final IGenericClient fhirClient;
 
+    /**
+     * @param fhirContext   the shared {@link FhirContext} singleton from {@link com.akhester.smartfhir.server.launch.FhirConfig}.
+     *                      Creating a second FhirContext via FhirContext.forR4() adds ~2–4 s
+     *                      startup overhead; injecting the singleton avoids that cost.
+     */
     public PractitionerLookupService(SmartIdpProperties idpProperties,
-                                      com.akhester.smartfhir.server.SmartServerProperties serverProperties) {
+                                      com.akhester.smartfhir.server.SmartServerProperties serverProperties,
+                                      FhirContext fhirContext) {
         this.idpProperties = idpProperties;
-
-        // Reuse HAPI FhirContext — expensive to create, shared across all calls
-        FhirContext ctx = FhirContext.forR4();
-        ctx.getRestfulClientFactory()
-                .setServerValidationMode(ServerValidationModeEnum.NEVER);
-        this.fhirClient = ctx.newRestfulGenericClient(serverProperties.fhirBaseUrl());
+        this.fhirClient = fhirContext.newRestfulGenericClient(serverProperties.fhirBaseUrl());
     }
 
     /**

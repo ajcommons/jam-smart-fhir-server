@@ -5,12 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.akhester.smartfhir.client.EpicProperties;
 import com.akhester.smartfhir.client.discovery.SmartConfiguration;
 import com.akhester.smartfhir.client.discovery.SmartDiscoveryService;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.RemoteJWKSet;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.jwt.proc.ConfigurableJWTProcessor;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -207,81 +216,72 @@ public class IdTokenValidator {
     }
 
     /**
-     * Fetches the JWKS from the discovery endpoint and confirms the signing key
-     * with the given {@code kid} exists. Full cryptographic verification requires
-     * Nimbus JOSE+JWT — this is a structural pre-check only.
+     * Verifies the JWT signature cryptographically using Nimbus JOSE+JWT.
      *
-     * <h3>TODO — production hardening</h3>
-     * Replace this method body with:
-     * <pre>
-     *   JWKSource&lt;SecurityContext&gt; keySource =
-     *       new RemoteJWKSet&lt;&gt;(new URL(jwksUri));
-     *   ConfigurableJWTProcessor&lt;SecurityContext&gt; processor =
-     *       new DefaultJWTProcessor&lt;&gt;();
-     *   processor.setJWSKeySelector(
-     *       new JWSVerificationKeySelector&lt;&gt;(JWSAlgorithm.RS256, keySource));
-     *   processor.process(SignedJWT.parse(rawJwt), null);
-     * </pre>
+     * <p>Fetches the JWKS from the {@code jwks_uri} in the SMART discovery document
+     * (falling back to a token-endpoint heuristic if absent) and uses
+     * {@link DefaultJWTProcessor} + {@link RemoteJWKSet} to perform full RS256
+     * signature verification per RFC 7517.</p>
+     *
+     * <p>The raw JWT string is reconstructed from the original three parts to match
+     * the exact bytes that were signed — do not re-encode from the decoded claims.</p>
      */
     private void verifySignatureStructure(String[] parts, String iss, String keyId) {
         SmartConfiguration config;
         try {
             config = discoveryService.discover(iss);
         } catch (Exception e) {
-            log.warn("Could not fetch SMART configuration for JWKS lookup — skipping key presence check");
+            log.warn("Could not fetch SMART configuration for JWKS — skipping signature check: {}",
+                    e.getMessage());
             return;
         }
 
-        // jwks_uri is not currently in SmartConfiguration — fetch it from a
-        // well-known fallback pattern. Epic's JWKS is at the same host as the
-        // token endpoint with a standard path.
-        String jwksUri = deriveJwksUri(config);
+        // Prefer jwks_uri from discovery; fall back to heuristic if absent
+        String jwksUri = (config.jwksUri() != null && !config.jwksUri().isBlank())
+                ? config.jwksUri()
+                : deriveJwksUri(config);
+
         if (jwksUri == null) {
-            log.warn("Could not determine JWKS URI — skipping key presence check");
+            log.warn("Could not determine JWKS URI — skipping signature check");
             return;
         }
+
+        // Reconstruct the original JWT string from its three dot-separated parts
+        String rawJwt = parts[0] + "." + parts[1] + "." + parts[2];
 
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(jwksUri))
-                    .GET().header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(10)).build();
-            HttpResponse<String> response =
-                    http.send(request, HttpResponse.BodyHandlers.ofString());
+            // RemoteJWKSet fetches keys from the JWKS endpoint and caches them;
+            // it handles key rotation by refreshing when an unknown kid appears.
+            JWKSource<SecurityContext> keySource =
+                    new RemoteJWKSet<>(URI.create(jwksUri).toURL());
 
-            if (response.statusCode() == 200) {
-                JsonNode jwks = objectMapper.readTree(response.body());
-                if (keyId != null) {
-                    boolean keyFound = false;
-                    for (JsonNode key : jwks.path("keys")) {
-                        if (keyId.equals(key.path("kid").asText(null))) {
-                            keyFound = true;
-                            break;
-                        }
-                    }
-                    if (!keyFound) {
-                        throw new IdTokenException(
-                                "id_token kid '" + keyId + "' not found in JWKS at " + jwksUri);
-                    }
-                }
-                log.debug("JWKS key presence verified — kid={}", keyId);
-            }
+            ConfigurableJWTProcessor<SecurityContext> processor = new DefaultJWTProcessor<>();
+            processor.setJWSKeySelector(
+                    new JWSVerificationKeySelector<>(JWSAlgorithm.RS256, keySource));
+
+            // process() throws BadJOSEException if the signature is invalid,
+            // JOSEException for key/alg issues, or ParseException for malformed JWT
+            processor.process(SignedJWT.parse(rawJwt), null);
+
+            log.debug("id_token RS256 signature verified — kid={}, jwksUri={}", keyId, jwksUri);
+
         } catch (IdTokenException e) {
             throw e;
         } catch (Exception e) {
-            log.warn("JWKS fetch failed — skipping signature check: {}", e.getMessage());
+            throw new IdTokenException(
+                    "id_token signature verification failed: " + e.getMessage(), e);
         }
     }
 
     /**
-     * Derives a JWKS URI from the token endpoint URL.
-     * Epic's JWKS is served at {@code {auth-base}/oauth2/jwks}.
-     * This is a heuristic — production should read {@code jwks_uri} from
-     * {@code /.well-known/smart-configuration} (add it to SmartConfiguration).
+     * Derives a JWKS URI from the token endpoint URL when {@code jwks_uri} is
+     * absent from the discovery document. Epic's JWKS typically follows the pattern:
+     * {@code {auth-base}/oauth2/jwks}.
+     *
+     * @deprecated Prefer reading {@code jwks_uri} directly from {@link SmartConfiguration}.
      */
     private String deriveJwksUri(SmartConfiguration config) {
         if (config.tokenEndpoint() == null) return null;
-        // token endpoint: https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
-        // JWKS endpoint:  https://fhir.epic.com/interconnect-fhir-oauth/oauth2/jwks
         return config.tokenEndpoint().replace("/token", "/jwks");
     }
 }

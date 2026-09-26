@@ -48,13 +48,23 @@ public class SmartAuthenticationToken extends AbstractAuthenticationToken {
     }
 
     /**
-     * The principal is the patient ID from the launch context.
-     * Used by Spring Security for audit logging and any downstream
-     * authentication-aware code.
+     * The principal is the patient ID from the launch context, or the FHIR base URL
+     * when no patient has been selected yet (standalone launch before the picker step).
+     *
+     * <p>{@code getPrincipal()} must never return {@code null}: Spring Security's audit
+     * log, toString(), and several framework internals assume a non-null value here.
+     * Returning the FHIR base URL is a meaningful fallback — it uniquely identifies
+     * the EHR system the user is connecting to.</p>
      */
     @Override
     public Object getPrincipal() {
-        return launchContext.patientId();
+        String patientId = launchContext.patientId();
+        if (patientId != null && !patientId.isBlank()) {
+            return patientId;
+        }
+        // Standalone launch: patient not yet selected — fall back to FHIR base URL
+        String fhirBase = launchContext.fhirBaseUrl();
+        return (fhirBase != null && !fhirBase.isBlank()) ? fhirBase : "unknown";
     }
 
     /**

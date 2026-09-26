@@ -79,11 +79,12 @@ public class AdminController {
      * Shows the edit form for an existing app.
      */
     @GetMapping("/apps/{id}/edit")
-    public String editAppForm(@PathVariable String id, Model model) {
+    public String editAppForm(@PathVariable String id, Model model,
+                              RedirectAttributes ra) {
         RegisteredApp app = adminService.findApp(id)
                 .orElse(null);
         if (app == null) {
-            model.addAttribute("errorMessage", "App not found.");
+            ra.addFlashAttribute("errorMessage", "App not found.");
             return "redirect:/admin";
         }
         model.addAttribute("editApp",    app);
@@ -178,10 +179,11 @@ public class AdminController {
      * Shows the edit form for a clinician.
      */
     @GetMapping("/clinicians/{id}/edit")
-    public String editClinicianForm(@PathVariable String id, Model model) {
+    public String editClinicianForm(@PathVariable String id, Model model,
+                                    RedirectAttributes ra) {
         Clinician c = adminService.findClinician(id).orElse(null);
         if (c == null) {
-            model.addAttribute("errorMessage", "Clinician not found.");
+            ra.addFlashAttribute("errorMessage", "Clinician not found.");
             return "redirect:/admin/clinicians";
         }
         model.addAttribute("editClinician", c);

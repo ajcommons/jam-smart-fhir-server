@@ -1,11 +1,7 @@
 package com.akhester.smartfhir.server.launch;
 
-import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.rest.client.api.IGenericClient;
 import com.akhester.smartfhir.server.SmartServerProperties;
 import jakarta.validation.constraints.Pattern;
-import org.hl7.fhir.r4.model.Bundle;
-import org.hl7.fhir.r4.model.Patient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,9 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Clinician-facing patient picker for EHR launch (SMART App Launch v2 §7.2).
@@ -38,14 +32,14 @@ public class LaunchPortalController {
 
     private final LaunchContextService launchContextService;
     private final SmartServerProperties serverProperties;
-    private final FhirContext fhirContext;
+    private final PatientFetchService patientFetchService;
 
     public LaunchPortalController(LaunchContextService launchContextService,
                                    SmartServerProperties serverProperties,
-                                   FhirContext fhirContext) {
-        this.launchContextService = launchContextService;
-        this.serverProperties     = serverProperties;
-        this.fhirContext          = fhirContext;
+                                   PatientFetchService patientFetchService) {
+        this.launchContextService  = launchContextService;
+        this.serverProperties      = serverProperties;
+        this.patientFetchService   = patientFetchService;
     }
 
     /**
@@ -58,8 +52,7 @@ public class LaunchPortalController {
         model.addAttribute("fhirBaseUrl", serverProperties.fhirBaseUrl());
 
         try {
-            List<Map<String, String>> patients = fetchPatients(search);
-            model.addAttribute("patients", patients);
+            model.addAttribute("patients", patientFetchService.fetchPatients(search));
         } catch (Exception e) {
             log.error("Failed to fetch patients from FHIR server at {}: {}",
                     serverProperties.fhirBaseUrl(), e.getMessage(), e);
@@ -118,48 +111,4 @@ public class LaunchPortalController {
         return "redirect:" + launchUrl;
     }
 
-    // ── private ───────────────────────────────────────────────────────────────
-
-    /**
-     * Fetches patients from the HAPI FHIR JPA server.
-     * Returns a list of maps for easy Thymeleaf rendering.
-     * Throws on network or FHIR errors — caller handles the exception.
-     */
-    private List<Map<String, String>> fetchPatients(String search) {
-        IGenericClient client = fhirContext.newRestfulGenericClient(
-                serverProperties.fhirBaseUrl());
-
-        var query = client.search().forResource(Patient.class);
-
-        if (search != null && !search.isBlank()) {
-            query = query.where(Patient.NAME.matches().value(search));
-        }
-
-        Bundle bundle = query.count(20)
-                .returnBundle(Bundle.class)
-                .execute();
-
-        List<Map<String, String>> result = new ArrayList<>();
-        for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
-            if (entry.getResource() instanceof Patient patient) {
-                String id = patient.getIdElement().getIdPart();
-
-                String name = patient.getName().isEmpty() ? "Unknown"
-                        : (patient.getNameFirstRep().getGivenAsSingleString()
-                           + " " + patient.getNameFirstRep().getFamily()).trim();
-
-                String dob    = patient.getBirthDateElement().getValueAsString();
-                String gender = patient.getGender() != null
-                        ? patient.getGender().toCode() : "unknown";
-
-                result.add(Map.of(
-                        "id",     id,
-                        "name",   name,
-                        "dob",    dob != null ? dob : "",
-                        "gender", gender
-                ));
-            }
-        }
-        return result;
-    }
 }

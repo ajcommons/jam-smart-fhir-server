@@ -67,12 +67,13 @@ public class RegisteredApp {
     }
 
     // ── Mutators used by JpaRegisteredClientRepository.save() ─────────────────
-    // Package-private: only JpaRegisteredClientRepository (same package) may call these.
-    // Use RegisteredAppRepository to persist the result after calling a setter.
+    // Package-private for internal mutators (same-package use only).
+    // setActive is public so integration tests in other packages can disable apps
+    // without reflection hacks; the method is intentionally narrow-scoped at call sites.
 
-    void setAppName(String appName)                         { this.appName = appName; }
-    void setRedirectUri(String redirectUri)                 { this.redirectUri = redirectUri; }
-    void setAllowedScopes(String allowedScopes)             { this.allowedScopes = allowedScopes; }
-    void setAccessTokenTtlSeconds(Long accessTokenTtlSeconds) { this.accessTokenTtlSeconds = accessTokenTtlSeconds; }
-    void setActive(boolean active)                          { this.active = active; }
+    void   setAppName(String appName)                         { this.appName = appName; }
+    void   setRedirectUri(String redirectUri)                 { this.redirectUri = redirectUri; }
+    void   setAllowedScopes(String allowedScopes)             { this.allowedScopes = allowedScopes; }
+    void   setAccessTokenTtlSeconds(Long v)                   { this.accessTokenTtlSeconds = v; }
+    public void setActive(boolean active)                     { this.active = active; }
 }
