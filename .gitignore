@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .gitignore — akhester SMART on FHIR Platform
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Secrets — never commit these ─────────────────────────────────────────────
+.env
+*.p12
+*.jks
+*.pem
+*.key
+*.crt
+*.pfx
+keystore/
+certs/
+
+# ── Maven build output ────────────────────────────────────────────────────────
+target/
+*/target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ── Dev H2 database files (created by dev profile) ───────────────────────────
+data/
+*.mv.db
+*.trace.db
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+*.launch
+.vscode/
+*.code-workspace
+.factorypath
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Spring Boot fat jar (produced by mvn package) ────────────────────────────
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ── Docker local overrides ────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Local test output ─────────────────────────────────────────────────────────
+surefire-reports/
+failsafe-reports/

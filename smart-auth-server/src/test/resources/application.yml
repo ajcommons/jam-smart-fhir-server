@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url:      jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false
+
+smart:
+  server:
+    fhir-base-url:          http://localhost:8080/fhir
+    issuer-url:             http://localhost:9000
+    access-token-ttl-seconds:  3600
+    refresh-token-ttl-seconds: 86400
+    default-need-patient-banner: true
+    smart-client-launch-url: http://localhost:8081/launch
+    default-client-id:      jam-smart-client
+
+logging:
+  level:
+    root: WARN
+    com.akhester: INFO
