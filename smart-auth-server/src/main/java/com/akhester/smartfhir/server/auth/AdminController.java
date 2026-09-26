@@ -68,7 +68,7 @@ public class AdminController {
             adminService.createApp(clientId.strip(), appName.strip(),
                                    redirectUri.strip(), allowedScopes.strip(), ttl);
             ra.addFlashAttribute("successMessage",
-                    "App "" + appName.strip() + "" registered successfully.");
+                    "App '" + appName.strip() + "' registered successfully.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
@@ -115,7 +115,7 @@ public class AdminController {
             adminService.updateApp(id, appName.strip(), redirectUri.strip(),
                                    allowedScopes.strip(), ttl, active);
             ra.addFlashAttribute("successMessage",
-                    "App "" + appName.strip() + "" updated.");
+                    "App '" + appName.strip() + "' updated.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
@@ -130,7 +130,7 @@ public class AdminController {
         try {
             String deletedName = adminService.deleteApp(id);
             ra.addFlashAttribute("successMessage",
-                    "App "" + deletedName + "" deleted.");
+                    "App '" + deletedName + "' deleted.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
@@ -168,7 +168,7 @@ public class AdminController {
                     fhirUserId.isBlank()  ? null : fhirUserId.strip(),
                     validateRole(role));
             ra.addFlashAttribute("successMessage",
-                    "Clinician "" + username.strip() + "" created.");
+                    "Clinician '" + username.strip() + "' created.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
@@ -240,7 +240,7 @@ public class AdminController {
         try {
             String deletedUsername = adminService.deleteClinician(id);
             ra.addFlashAttribute("successMessage",
-                    "Clinician "" + deletedUsername + "" deleted.");
+                    "Clinician '" + deletedUsername + "' deleted.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
