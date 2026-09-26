@@ -115,7 +115,7 @@ public class SmartScopeAuthorizationInterceptor {
         // Search (GET /Patient?...) needs "s"; read (GET /Patient/123) needs "r".
         // Both are HTTP GET, so we must use RestOperationTypeEnum, not the HTTP method string.
         String requiredOp = switch (opType) {
-            case SEARCH_TYPE, SEARCH_SYSTEM, SEARCH_SYSTEM_TYPE -> "s";
+            case SEARCH_TYPE, SEARCH_SYSTEM -> "s";
             case READ, VREAD                                     -> "r";
             case CREATE                                          -> "c";
             case UPDATE, PATCH                                   -> "u";
